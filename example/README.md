@@ -29,19 +29,28 @@ heavier use swap `NEXT_PUBLIC_RPC_URL` for a paid RPC.
 Connect a Solana wallet **set to devnet** (Phantom/Backpack/Solflare). Fund it with
 devnet SOL + dUSDC (https://faucet.umbraprivacy.com/), then walk tabs 1 → 5.
 
-## ⚠️ Required SDK patch (rc.4 scan bug)
+## ⚠️ Required SDK workarounds (rc.4)
 
-`@umbra-privacy/sdk@5.0.0-rc.4`'s columnar UTXO path (used by every `scan()`)
-calls `BigInt()` on a base64 string for `h1_version` / `h1_commitment_index`,
-throwing `Cannot convert <base64> to a BigInt` — which breaks the **Claim** tab.
-`scripts/patch-sdk.mjs` rewrites those two reads to decode the base64 LE bytes.
-It runs automatically on `postinstall`; re-run manually with `pnpm fix-sdk`.
-Remove once the SDK ships a fix.
+Two `rc.4` issues are handled for you — both go away once the SDK publishes the next release:
+
+1. **Codama PDA bug → deposits fail with `ConstraintSeeds (2006)`.** `@umbra-privacy/sdk@5.0.0-rc.4`
+   resolves `@umbra-privacy/umbra-codama@3.0.0-rc.3`, which derives the wrong `computation_data`
+   PDA. `package.json` pins the fixed client via a `pnpm` override:
+
+   ```jsonc
+   { "pnpm": { "overrides": { "@umbra-privacy/umbra-codama": "3.0.0-rc.4" } } }
+   ```
+
+2. **Columnar `scan()` bug → breaks the Claim tab.** The columnar UTXO path calls `BigInt()` on a
+   base64 string for `h1_version` / `h1_commitment_index`, throwing `Cannot convert <base64> to a
+   BigInt`. `scripts/patch-sdk.mjs` rewrites those two reads to decode the base64 LE bytes; it runs
+   automatically on `postinstall` (re-run manually with `pnpm fix-sdk`).
 
 ## Architecture
 
 - **Signer**: Wallet Standard → `IUmbraSigner` (`createSignerFromWalletAccount({ wallet, account })`). Wallet-only — there is no keypair/dev signer.
-- **Client** (`lib/umbra-client.ts`): 3-phase build keyed by wallet address; wires encrypted-sharded IndexedDB `utxoDataStore` + `nullifierStore` (incremental zero-arg scans) and **polling** transaction/computation transport (public devnet RPC refuses WebSocket subscriptions).
+- **Client** (`lib/umbra-client.ts`): 3-phase build keyed by wallet address; wires the SDK's **standard** encrypted-sharded IndexedDB stores — `createShardedUtxoDataStore` + `createShardedNullifierStore` (`@umbra-privacy/sdk/store-adapters`) — plus **polling** transaction/computation transport (public devnet RPC refuses WebSocket subscriptions).
+- **Stores / Claim model**: the zero-arg `scan()` advances each tree's cursor and **persists** every decrypted note into `utxoDataStore`. The Claim tab therefore *scans to ingest new leaves, then **queries** the store* (`client.utxoDataStore.query({ network, signerAddress })`) for the full known-note set — so notes survive reloads and incremental re-scans. Burnt notes are hidden via a small local burnt-index (`lib/claimed-index-store.ts`); the `nullifierStore` tracks the canonical burn lifecycle.
 - **Master seed**: re-derived each session by signing the Umbra message (read-only; no spend authority). Cached in-memory so the wallet signs once.
 - **Indexer/relayer**: proxied via `/proxy/...` rewrites in `next.config.ts` to the devnet upstreams (`INDEXER_UPSTREAM` / `RELAYER_UPSTREAM`) — browser never hits them directly (CORS + IP hiding).
 - **ZK provers** (`lib/zk-prover.ts`): per-circuit, CDN assets, main thread (wrap in a Web Worker for production — advanced.md §5).

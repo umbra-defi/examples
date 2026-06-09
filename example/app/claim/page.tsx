@@ -29,11 +29,10 @@
 // Privacy note (privacy.md): receive UI is MANUAL — no auto-burn.
 
 import { useState } from "react";
-import { getAddressDecoder } from "@solana/kit";
+import { address, getAddressDecoder } from "@solana/kit";
 import { getBurnableStealthPoolNoteScannerFunction } from "@umbra-privacy/sdk/burn";
 import { env, umbraNetwork } from "@/lib/env";
 import { findMint } from "@/lib/supported-mints";
-import { updateWatermarksFromScan, clearWatermarks } from "@/lib/watermark-store";
 import { Nav } from "@/components/Nav";
 import { WalletButton } from "@/components/WalletButton";
 import { RegistrationGate } from "@/components/RegistrationGate";
@@ -143,67 +142,71 @@ export default function ReceivePage() {
     setError(null);
     setResults(null);
     try {
-      // V18: zero-arg scanner. Cursor + tree discovery handled
-      // internally via client.utxoDataStore (wired in lib/umbra-client.ts).
-      const scan  = getBurnableStealthPoolNoteScannerFunction({ client });
-      const fresh = await scan();
+      // V18: zero-arg scanner. It discovers trees, advances the per-tree cursor
+      // in client.utxoDataStore (the STANDARD createShardedUtxoDataStore, wired in
+      // lib/umbra-client.ts), and PUTs every decrypted note into that store.
+      const scan = getBurnableStealthPoolNoteScannerFunction({ client });
+      await scan();
 
       const burnt = await loadBurnt(selectedAccount.address);
 
-      // Advance the per-tree scan watermark past the fully-claimed prefix so the
-      // next scan starts from the oldest still-unclaimed note (cheaper than a
-      // genesis scan, and never drops an unclaimed note). See watermark-store.ts.
-      updateWatermarksFromScan(umbraNetwork(), selectedAccount.address, fresh as never, burnt);
+      // Read the FULL set of known notes from the store — not just this scan's
+      // delta. The standard sharded store keeps every discovered note, so notes
+      // survive reloads and incremental re-scans (no watermark workaround needed).
+      const store = client.utxoDataStore;
+      const entries = store
+        ? await store.query({ network: umbraNetwork(), signerAddress: address(selectedAccount.address) })
+        : [];
 
-      // V18 burner bindings:
-      //   - etaIntoReceiverBurnable → burn via
-      //     getReceiverBurnableStealthPoolNoteIntoETABurnerFunction
-      //   - etaIntoSelfBurnable     → burn via
-      //     getSelfBurnableStealthPoolNoteIntoETABurnerFunction
-      //   - ataIntoSelfBurnable → burn via
-      //     getSelfBurnableStealthPoolNoteIntoATABurnerFunction
-      //   - ataIntoReceiverBurnable has NO burner yet
-      const toBurnable = (raw: unknown, type: "receiver" | "self"): BurnableNote => {
-        const r = raw as { id?: string; insertionIndex?: bigint; treeIndex?: bigint };
+      // claimType → burn route:
+      //   - etaToStealthPoolReceiverBurnable → receiver burner (→ ETA)
+      //   - etaToStealthPoolSelfBurnable / ataToStealthPoolSelfBurnable → self burner
+      //   - ataToStealthPoolReceiverBurnable → NO burner in V18 yet (shown as pending)
+      const toBurnable = (
+        entry: { utxoKey?: string; treeIndex?: bigint; insertionIndex?: bigint; data: unknown },
+        type: "receiver" | "self",
+      ): BurnableNote => {
         const id =
-          r.id ??
-          (r.treeIndex !== undefined && r.insertionIndex !== undefined
-            ? `${r.treeIndex}:${r.insertionIndex}`
-            : `unknown:${Math.random().toString(36).slice(2)}`);
-        return { raw, id, type };
+          entry.treeIndex !== undefined && entry.insertionIndex !== undefined
+            ? `${entry.treeIndex}:${entry.insertionIndex}`
+            : String(entry.utxoKey ?? `unknown:${Math.random().toString(36).slice(2)}`);
+        return { raw: entry.data, id, type };
       };
 
-      const receiver = filterUnburnt(
-        fresh.etaToStealthPoolReceiverBurnable.map((n) =>
-          toBurnable(n, "receiver"),
-        ),
-        burnt,
+      const receiverEntries = entries.filter(
+        (e) => e.claimType === "etaToStealthPoolReceiverBurnable",
       );
-      const selfBurnable = filterUnburnt(
-        [
-          ...fresh.etaToStealthPoolSelfBurnable.map((n) => toBurnable(n, "self")),
-          ...fresh.ataToStealthPoolSelfBurnable.map((n) => toBurnable(n, "self")),
-        ],
-        burnt,
+      const selfEntries = entries.filter(
+        (e) =>
+          e.claimType === "etaToStealthPoolSelfBurnable" ||
+          e.claimType === "ataToStealthPoolSelfBurnable",
       );
+      const pendingReceiverIntoPATA = entries.filter(
+        (e) => e.claimType === "ataToStealthPoolReceiverBurnable",
+      ).length;
 
-      const rawReceiver = fresh.etaToStealthPoolReceiverBurnable.length;
-      const rawSelf =
-        fresh.etaToStealthPoolSelfBurnable.length + fresh.ataToStealthPoolSelfBurnable.length;
+      const receiver = filterUnburnt(receiverEntries.map((e) => toBurnable(e, "receiver")), burnt);
+      const selfBurnable = filterUnburnt(selfEntries.map((e) => toBurnable(e, "self")), burnt);
+
       setScanned({
         receiver,
         selfBurnable,
-        rawReceiver,
-        rawSelf,
-        pendingReceiverIntoPATA: fresh.ataToStealthPoolReceiverBurnable.length,
+        rawReceiver: receiverEntries.length,
+        rawSelf: selfEntries.length,
+        pendingReceiverIntoPATA,
         total: receiver.length + selfBurnable.length,
       });
-      dbg("receive", `manual refresh → ${receiver.length} receiver + ${selfBurnable.length} self-burnable (after filtering ${burnt.size ?? "?"} already-burnt)`, {
-        rawReceiverETA: fresh.etaToStealthPoolReceiverBurnable.length,
-        rawSelfETA: fresh.etaToStealthPoolSelfBurnable.length,
-        rawSelfATA: fresh.ataToStealthPoolSelfBurnable.length,
-        rawReceiverATA: fresh.ataToStealthPoolReceiverBurnable.length,
-      });
+      dbg(
+        "receive",
+        `scan + store-query → ${receiver.length} receiver + ${selfBurnable.length} self-burnable ` +
+          `(store holds ${entries.length}; ${burnt.size ?? "?"} already-burnt filtered)`,
+        {
+          storeEntries: entries.length,
+          receiverEntries: receiverEntries.length,
+          selfEntries: selfEntries.length,
+          pendingReceiverIntoPATA,
+        },
+      );
     } catch (e: unknown) {
       const msg = formatSdkErrorString(e);
       console.error("Umbra scan failed:", msg);
@@ -251,14 +254,13 @@ export default function ReceivePage() {
     }
   }
 
-  // Full rescan FROM THE START: reset the watermark (scan from genesis) and the
-  // local burnt-cache, then scan. Use when a note you expect is missing — this
-  // re-discovers everything. (It does NOT un-burn an on-chain note; a genuinely
-  // burnt nullifier still no-ops on re-burn.)
+  // Clear the local burnt-cache, then scan + re-query the store. Use when a note
+  // you expect is hidden by the burnt-cache. The standard utxoDataStore retains
+  // every discovered note, so this re-surfaces all unburnt notes. (It does NOT
+  // un-burn an on-chain note; a genuinely burnt nullifier still no-ops on re-burn.)
   async function fullRescan() {
     if (!selectedAccount) return;
     await clearBurnt(selectedAccount.address);
-    clearWatermarks(umbraNetwork(), selectedAccount.address);
     await refresh();
   }
 

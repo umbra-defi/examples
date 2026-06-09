@@ -27,8 +27,8 @@ import type { MasterSeed } from "@umbra-privacy/sdk/types";
 import {
   createBrowserStorageBackend,
   createShardedNullifierStore,
+  createShardedUtxoDataStore,
 } from "@umbra-privacy/sdk/store-adapters";
-import { createWatermarkUtxoDataStore } from "./watermark-store";
 import { getPollingComputationMonitor } from "@umbra-privacy/sdk/arcium";
 import { getPollingTransactionForwarder } from "@umbra-privacy/sdk/solana";
 import { env, deriveWsUrl, umbraNetwork, rpcTransport } from "./env";
@@ -100,18 +100,17 @@ export async function getOrCreateUmbraClient(
     // Phase 1 — bootstrap client (no stores). Derives + caches the master seed.
     const bootstrap = await getUmbraClient(config, { masterSeedStorage, ...transport });
 
-    // Phase 2 — nullifier store (burn lifecycle) + a WATERMARK utxoDataStore.
+    // Phase 2 — the SDK's STANDARD sharded stores (encrypted, IndexedDB-backed):
+    //   - utxoDataStore  — persists every decrypted note + per-tree scan progress.
+    //   - nullifierStore — tracks the burn lifecycle (scanned → submitted → confirmed).
     //
-    // The watermark store reports `[0, watermark-1]` as already-scanned, so the
-    // scanner only scans `[watermark, tip)` — re-discovering every still-unclaimed
-    // note every time (no disappearing notes), while skipping the fully-claimed
-    // prefix (cheaper than a genesis scan). The app advances the watermark after
-    // claims (lib/watermark-store.ts). The default incremental cursor is wrong
-    // here because it advances past unclaimed notes; full-genesis is correct but
-    // wasteful — the watermark is the middle ground.
+    // The scanner advances the per-tree cursor and PUTs each discovered note into
+    // utxoDataStore, so notes survive reloads and incremental re-scans. The Claim
+    // page therefore scans (to ingest new leaves) and then QUERIES the store for
+    // the full set of known notes — no custom watermark cursor needed.
     const backend = createBrowserStorageBackend();
     const nullifierStore = await createShardedNullifierStore(bootstrap, backend);
-    const utxoDataStore = createWatermarkUtxoDataStore();
+    const utxoDataStore = await createShardedUtxoDataStore(bootstrap, backend);
 
     // Phase 3 — final client (seed loaded from cache; no re-sign).
     return getUmbraClient(config, {
