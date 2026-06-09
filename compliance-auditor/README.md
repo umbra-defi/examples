@@ -73,18 +73,12 @@ pnpm demo
 Both keypairs need a little devnet SOL (the grant issue/revoke are MPC transactions):
 fund them at https://faucet.umbraprivacy.com/.
 
-## Required override (V18 / rc.4)
+## Install
 
-`@umbra-privacy/sdk@5.0.0-rc.4` resolves `@umbra-privacy/umbra-codama@3.0.0-rc.3`,
-which has a PDA-derivation bug. `package.json` pins the fixed client:
-
-```jsonc
-{ "pnpm": { "overrides": { "@umbra-privacy/umbra-codama": "3.0.0-rc.4" } } }
-```
-
-(No `scan()` patch is needed here — this example never scans the mixer; if you
-extend the auditor to decrypt notes, add the patch from the `private-payments-nextjs`
-example.)
+`@umbra-privacy/sdk@5.0.0-rc.6` is self-contained — it pins
+`@umbra-privacy/umbra-codama@3.0.0-rc.6`, so no package-manager override and no dist
+patch are needed (the earlier rc.3/rc.4 codama and `scan()` workarounds are fixed in
+rc.6). Just `pnpm install`.
 
 ## Links
 

@@ -1,6 +1,6 @@
 # Umbra Private Payments (Next.js example)
 
-A private-payments app on Solana, powered by **Umbra** (`@umbra-privacy/sdk@5.0.0-rc.4`,
+A private-payments app on Solana, powered by **Umbra** (`@umbra-privacy/sdk@5.0.0-rc.6`,
 protocol V18). Scaffolded from the `umbra-sdk` skill template and restructured into the
 **5 private-payment steps**, one tab each. Targets **devnet** + **dUSDC**.
 
@@ -17,7 +17,7 @@ protocol V18). Scaffolded from the `umbra-sdk` skill template and restructured i
 ## Quick start
 
 ```bash
-pnpm install          # runs scripts/patch-sdk.mjs via postinstall (see below)
+pnpm install
 pnpm dev              # http://localhost:3000
 # or: pnpm build && pnpm start
 ```
@@ -28,23 +28,6 @@ heavier use swap `NEXT_PUBLIC_RPC_URL` for a paid RPC.
 
 Connect a Solana wallet **set to devnet** (Phantom/Backpack/Solflare). Fund it with
 devnet SOL + dUSDC (https://faucet.umbraprivacy.com/), then walk tabs 1 → 5.
-
-## ⚠️ Required SDK workarounds (rc.4)
-
-Two `rc.4` issues are handled for you — both go away once the SDK publishes the next release:
-
-1. **Codama PDA bug → deposits fail with `ConstraintSeeds (2006)`.** `@umbra-privacy/sdk@5.0.0-rc.4`
-   resolves `@umbra-privacy/umbra-codama@3.0.0-rc.3`, which derives the wrong `computation_data`
-   PDA. `package.json` pins the fixed client via a `pnpm` override:
-
-   ```jsonc
-   { "pnpm": { "overrides": { "@umbra-privacy/umbra-codama": "3.0.0-rc.4" } } }
-   ```
-
-2. **Columnar `scan()` bug → breaks the Claim tab.** The columnar UTXO path calls `BigInt()` on a
-   base64 string for `h1_version` / `h1_commitment_index`, throwing `Cannot convert <base64> to a
-   BigInt`. `scripts/patch-sdk.mjs` rewrites those two reads to decode the base64 LE bytes; it runs
-   automatically on `postinstall` (re-run manually with `pnpm fix-sdk`).
 
 ## Architecture
 
@@ -69,8 +52,6 @@ app/
   providers.tsx   UmbraSessionProvider (wallets + client, keyed by account)
 components/       Nav (5 tabs), WalletButton, RegistrationGate, ScanWorker, …
 lib/              env, signer, umbra-client, zk-prover, claim-*, supported-mints, …
-scripts/
-  patch-sdk.mjs   rc.4 columnar-scan workaround (postinstall + `pnpm fix-sdk`)
 ```
 
 ## Notes

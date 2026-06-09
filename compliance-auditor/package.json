@@ -3,14 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Headless, framework-agnostic example of Umbra selective-disclosure compliance: derive scoped viewing keys + issue/query/revoke X25519 re-encryption grants. Built on @umbra-privacy/sdk@5.0.0-rc.4 (protocol V18).",
+  "description": "Headless, framework-agnostic example of Umbra selective-disclosure compliance: derive scoped viewing keys + issue/query/revoke X25519 re-encryption grants. Built on @umbra-privacy/sdk@5.0.0-rc.6 (protocol V18).",
   "scripts": {
     "typecheck": "tsc --noEmit",
     "demo": "tsx src/cli.ts"
   },
   "dependencies": {
     "@solana/kit": "^6.9.0",
-    "@umbra-privacy/sdk": "5.0.0-rc.4",
+    "@umbra-privacy/sdk": "5.0.0-rc.6",
     "@wallet-standard/core": "^1.1.0",
     "snarkjs": "^0.7.6"
   },
@@ -18,10 +18,5 @@
     "@types/node": "^22.10.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0"
-  },
-  "pnpm": {
-    "overrides": {
-      "@umbra-privacy/umbra-codama": "3.0.0-rc.4"
-    }
   }
 }

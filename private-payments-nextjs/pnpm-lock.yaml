@@ -4,9 +4,6 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-overrides:
-  '@umbra-privacy/umbra-codama': 3.0.0-rc.4
-
 importers:
 
   .:
@@ -18,8 +15,8 @@ importers:
         specifier: ^1.3.0
         version: 1.3.0
       '@umbra-privacy/sdk':
-        specifier: 5.0.0-rc.4
-        version: 5.0.0-rc.4(snarkjs@0.7.6)(typescript@5.9.3)
+        specifier: 5.0.0-rc.5
+        version: 5.0.0-rc.5(snarkjs@0.7.6)(typescript@5.9.3)
       '@wallet-standard/app':
         specifier: ^1.1.0
         version: 1.1.0
@@ -863,8 +860,8 @@ packages:
     resolution: {integrity: sha512-59UDBZsPD7RTHbr08TXnCWitHZZ8qOsvtYReSP6Ig3jVeY2mYdx1KBnKnpBlm8UQH8U1HFG1AzIgp2R0SCjtWQ==}
     engines: {node: '>=18.0.0'}
 
-  '@umbra-privacy/sdk@5.0.0-rc.4':
-    resolution: {integrity: sha512-cB9To6yNyfSAj7IfRG7XQqOJUSB1MkDWbH+1B+Fq+kKaq8wkvCa1C8ux4agi0jDPvTXLPbYBrNYQvd0raS+cHA==}
+  '@umbra-privacy/sdk@5.0.0-rc.5':
+    resolution: {integrity: sha512-P0x/Pu/BXDMIzBZjEgRCdeHS6XA+E/5bmH1Q5RvJYGSOJLpfbnp6vKrKqdavtD8UaUPOQkUyJ7/leHRImY+VWA==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       '@wallet-standard/core': '>=1.0.0'
@@ -875,8 +872,8 @@ packages:
       snarkjs:
         optional: true
 
-  '@umbra-privacy/umbra-codama@3.0.0-rc.4':
-    resolution: {integrity: sha512-ocCScIKQ0yOSxxZiERSF2Q1UUXKlqpvvxs4DPdUBcsmFIVMh5FbCwHUJdmXEnHUc+dm0flkdF6zx+9xpurg3wA==}
+  '@umbra-privacy/umbra-codama@3.0.0-rc.5':
+    resolution: {integrity: sha512-cwvqbK3NDttDMbKpPRgLUIQJlT7XGVcIyu/0GQjg6qE3Ir1AXGfaLxUwkA/iisHLS1yqpkNh8MpTj2eyAEMoUw==}
     engines: {node: '>=18.0.0'}
 
   '@unrs/resolver-binding-android-arm-eabi@1.12.2':
@@ -3061,7 +3058,7 @@ snapshots:
       - typescript
       - utf-8-validate
 
-  '@umbra-privacy/sdk@5.0.0-rc.4(snarkjs@0.7.6)(typescript@5.9.3)':
+  '@umbra-privacy/sdk@5.0.0-rc.5(snarkjs@0.7.6)(typescript@5.9.3)':
     dependencies:
       '@bufbuild/protobuf': 2.12.0
       '@noble/ciphers': 2.2.0
@@ -3070,7 +3067,7 @@ snapshots:
       '@solana/kit': 6.9.0(typescript@5.9.3)
       '@solana/wallet-standard-features': 1.3.0
       '@umbra-privacy/arcium-codama': 2.0.1(typescript@5.9.3)
-      '@umbra-privacy/umbra-codama': 3.0.0-rc.4(typescript@5.9.3)
+      '@umbra-privacy/umbra-codama': 3.0.0-rc.5(typescript@5.9.3)
     optionalDependencies:
       snarkjs: 0.7.6
     transitivePeerDependencies:
@@ -3079,7 +3076,7 @@ snapshots:
       - typescript
       - utf-8-validate
 
-  '@umbra-privacy/umbra-codama@3.0.0-rc.4(typescript@5.9.3)':
+  '@umbra-privacy/umbra-codama@3.0.0-rc.5(typescript@5.9.3)':
     dependencies:
       '@solana-program/system': 0.11.0(@solana/kit@6.9.0(typescript@5.9.3))
       '@solana-program/token-2022': 0.9.0(@solana/kit@6.9.0(typescript@5.9.3))(@solana/sysvars@6.9.0(typescript@5.9.3))
