@@ -22,6 +22,13 @@ zero-knowledge proofs. Everything here is built on the public TypeScript SDK,
   See [`private-payments-nextjs/README.md`](./private-payments-nextjs/README.md) for the full walkthrough,
   architecture, and the one required `rc.4` SDK patch.
 
+- **[`compliance-auditor/`](./compliance-auditor)** — a **headless** (no-UI)
+  selective-disclosure example: derive the scoped viewing-key hierarchy
+  (Master → Mint → Monthly → Daily) and issue / query / revoke an on-chain X25519
+  re-encryption grant to an auditor. A framework-agnostic core (`src/core/`) +
+  a thin Node CLI demo — drop the core into a CLI, React, or mobile app unchanged.
+  See [`compliance-auditor/README.md`](./compliance-auditor/README.md).
+
 ## Run the app
 
 ```bash
