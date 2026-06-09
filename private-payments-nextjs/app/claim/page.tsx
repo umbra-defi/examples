@@ -31,6 +31,8 @@
 import { useState } from "react";
 import { address, getAddressDecoder } from "@solana/kit";
 import { getBurnableStealthPoolNoteScannerFunction } from "@umbra-privacy/sdk/burn";
+import { reconcileWithOnChainState } from "@umbra-privacy/sdk/store";
+import { createInMemoryUtxoDataStore } from "@umbra-privacy/sdk/store-adapters";
 import { env, umbraNetwork } from "@/lib/env";
 import { findMint } from "@/lib/supported-mints";
 import { Nav } from "@/components/Nav";
@@ -47,7 +49,6 @@ import {
   loadBurnt,
   addBurnt,
   clearBurnt,
-  filterUnburnt,
 } from "@/lib/claimed-index-store";
 
 const explorerTx = (sig: string) => `https://explorer.solana.com/tx/${sig}?cluster=devnet`;
@@ -146,7 +147,7 @@ export default function ReceivePage() {
       // in client.utxoDataStore (the STANDARD createShardedUtxoDataStore, wired in
       // lib/umbra-client.ts), and PUTs every decrypted note into that store.
       const scan = getBurnableStealthPoolNoteScannerFunction({ client });
-      await scan();
+      const fresh = await scan();
 
       const burnt = await loadBurnt(selectedAccount.address);
 
@@ -157,6 +158,36 @@ export default function ReceivePage() {
       const entries = store
         ? await store.query({ network: umbraNetwork(), signerAddress: address(selectedAccount.address) })
         : [];
+
+      // Reconcile each scanned tree against the ON-CHAIN nullifier set so notes
+      // already burnt on-chain (in a prior session, on another device, or by anyone)
+      // get marked `confirmed` in the nullifier store — then we hide them. The
+      // scanner matches commitments, NOT nullifiers, so without this it keeps
+      // re-surfacing spent notes. Best-effort per tree; on failure we fall back to
+      // the local burnt-cache only.
+      const nullifierStore = client.nullifierStore;
+      let confirmed: ReadonlySet<string> = new Set<string>();
+      if (nullifierStore) {
+        for (const t of fresh.scannedTrees ?? []) {
+          try {
+            await reconcileWithOnChainState({ client, stealthPoolIndex: BigInt(t.treeIndex) as never });
+          } catch (e) {
+            dbg("receive", `nullifier reconcile failed for tree ${String(t.treeIndex)}`, e);
+          }
+        }
+        try {
+          confirmed = (await nullifierStore.filterByState(["confirmed"])) as ReadonlySet<string>;
+        } catch (e) {
+          dbg("receive", "filterByState(confirmed) failed", e);
+        }
+      }
+
+      // A note is spendable only if it is NOT burnt on-chain (confirmed) AND not in
+      // the local burnt-cache (covers the gap between a just-submitted burn and the
+      // next reconcile).
+      const isSpent = (e: { utxoKey?: string; treeIndex?: bigint; insertionIndex?: bigint }): boolean =>
+        (e.utxoKey !== undefined && confirmed.has(e.utxoKey)) ||
+        burnt.has(`${e.treeIndex}:${e.insertionIndex}`);
 
       // claimType → burn route:
       //   - etaToStealthPoolReceiverBurnable → receiver burner (→ ETA)
@@ -173,26 +204,26 @@ export default function ReceivePage() {
         return { raw: entry.data, id, type };
       };
 
-      const receiverEntries = entries.filter(
-        (e) => e.claimType === "etaToStealthPoolReceiverBurnable",
-      );
-      const selfEntries = entries.filter(
+      const allReceiver = entries.filter((e) => e.claimType === "etaToStealthPoolReceiverBurnable");
+      const allSelf = entries.filter(
         (e) =>
           e.claimType === "etaToStealthPoolSelfBurnable" ||
           e.claimType === "ataToStealthPoolSelfBurnable",
       );
+      const receiverEntries = allReceiver.filter((e) => !isSpent(e));
+      const selfEntries = allSelf.filter((e) => !isSpent(e));
       const pendingReceiverIntoPATA = entries.filter(
-        (e) => e.claimType === "ataToStealthPoolReceiverBurnable",
+        (e) => e.claimType === "ataToStealthPoolReceiverBurnable" && !isSpent(e),
       ).length;
 
-      const receiver = filterUnburnt(receiverEntries.map((e) => toBurnable(e, "receiver")), burnt);
-      const selfBurnable = filterUnburnt(selfEntries.map((e) => toBurnable(e, "self")), burnt);
+      const receiver = receiverEntries.map((e) => toBurnable(e, "receiver"));
+      const selfBurnable = selfEntries.map((e) => toBurnable(e, "self"));
 
       setScanned({
         receiver,
         selfBurnable,
-        rawReceiver: receiverEntries.length,
-        rawSelf: selfEntries.length,
+        rawReceiver: allReceiver.length,
+        rawSelf: allSelf.length,
         pendingReceiverIntoPATA,
         total: receiver.length + selfBurnable.length,
       });
@@ -254,14 +285,50 @@ export default function ReceivePage() {
     }
   }
 
-  // Clear the local burnt-cache, then scan + re-query the store. Use when a note
-  // you expect is hidden by the burnt-cache. The standard utxoDataStore retains
-  // every discovered note, so this re-surfaces all unburnt notes. (It does NOT
-  // un-burn an on-chain note; a genuinely burnt nullifier still no-ops on re-burn.)
+  // Full rescan FROM GENESIS. A normal Scan is incremental — the persistent
+  // utxoDataStore's per-tree cursor sits at the tip, so scan() only returns NEW
+  // leaves. That's why "re-scan" alone looks like a no-op. Here we run the scanner
+  // against a FRESH in-memory store (no cursor → reads every tree from leaf 0),
+  // merge everything it discovers into the persistent store, then re-query +
+  // reconcile. Use to recover a note the incremental cursor skipped or after
+  // clearing browser storage. (It does NOT un-burn anything — spent notes stay
+  // hidden by the on-chain nullifier reconcile.)
   async function fullRescan() {
-    if (!selectedAccount) return;
-    await clearBurnt(selectedAccount.address);
-    await refresh();
+    if (!client || !selectedAccount) return;
+    setRefreshing(true);
+    setError(null);
+    setResults(null);
+    try {
+      await clearBurnt(selectedAccount.address);
+
+      // Swap in a cursor-less in-memory store so scan() walks every tree from
+      // genesis; the SDK types utxoDataStore readonly, so cast to assign.
+      const mutableClient = client as unknown as { utxoDataStore?: unknown };
+      const realStore = client.utxoDataStore;
+      const temp = createInMemoryUtxoDataStore();
+      mutableClient.utxoDataStore = temp;
+      try {
+        const scan = getBurnableStealthPoolNoteScannerFunction({ client });
+        await scan(); // genesis — temp store has no scan progress
+        const discovered = await temp.query({
+          network: umbraNetwork(),
+          signerAddress: address(selectedAccount.address),
+        });
+        // Merge genesis-discovered notes into the persistent store so the normal
+        // query path (in refresh) sees them.
+        if (realStore) await realStore.put(discovered);
+        dbg("receive", `full rescan (genesis) discovered ${discovered.length} note(s)`);
+      } finally {
+        mutableClient.utxoDataStore = realStore;
+      }
+
+      await refresh(); // re-query the now-complete persistent store + reconcile + filter
+    } catch (e: unknown) {
+      console.error("Umbra full rescan failed:", formatSdkErrorString(e));
+      setError(formatSdkErrorString(e));
+    } finally {
+      setRefreshing(false);
+    }
   }
 
   const recvCount = scanned?.receiver.length ?? 0;
@@ -295,8 +362,9 @@ export default function ReceivePage() {
               {filteredOut > 0 && (
                 <>
                   {" "}
-                  <span className="error">{filteredOut} hidden by the local burnt-cache</span> — if a
-                  note you expect is missing, click <em>Full rescan (from start)</em>.
+                  <span className="error">{filteredOut} already-burnt note(s) hidden</span> (on-chain
+                  nullifier check + local cache) — if a note you expect is missing, click{" "}
+                  <em>Full rescan (from start)</em>.
                 </>
               )}
             </p>
