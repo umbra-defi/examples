@@ -8,7 +8,7 @@ zero-knowledge proofs. Everything here is built on the public TypeScript SDK,
 
 ## What's here
 
-- **[`example/`](./example)** — a full **private-payments Next.js app** (devnet,
+- **[`private-payments-nextjs/`](./private-payments-nextjs)** — a full **private-payments Next.js app** (devnet,
   dUSDC). Wallet-only signer, the SDK's standard browser store adapters
   (`createShardedUtxoDataStore` + `createShardedNullifierStore`), and the five
   private-payment steps as one tab each:
@@ -19,13 +19,13 @@ zero-knowledge proofs. Everything here is built on the public TypeScript SDK,
   4. **Claim** — scan + burn notes addressed to you (→ ETA or ATA).
   5. **Withdraw** — ETA → your public ATA (unshield), via MPC.
 
-  See [`example/README.md`](./example/README.md) for the full walkthrough,
+  See [`private-payments-nextjs/README.md`](./private-payments-nextjs/README.md) for the full walkthrough,
   architecture, and the one required `rc.4` SDK patch.
 
 ## Run the app
 
 ```bash
-cd example
+cd private-payments-nextjs
 pnpm install          # runs scripts/patch-sdk.mjs via postinstall
 pnpm dev              # http://localhost:3000
 ```
