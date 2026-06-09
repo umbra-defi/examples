@@ -4,7 +4,7 @@ Reference applications for **[Umbra](https://umbraprivacy.com)** — a privacy
 protocol for Solana that shields SPL / Token-2022 balances using Arcium MPC and
 zero-knowledge proofs. Everything here is built on the public TypeScript SDK,
 [`@umbra-privacy/sdk`](https://www.npmjs.com/package/@umbra-privacy/sdk)
-(`5.0.0-rc.4`, protocol V18).
+(`5.0.0-rc.6`, protocol V18).
 
 ## What's here
 
@@ -19,8 +19,8 @@ zero-knowledge proofs. Everything here is built on the public TypeScript SDK,
   4. **Claim** — scan + burn notes addressed to you (→ ETA or ATA).
   5. **Withdraw** — ETA → your public ATA (unshield), via MPC.
 
-  See [`private-payments-nextjs/README.md`](./private-payments-nextjs/README.md) for the full walkthrough,
-  architecture, and the one required `rc.4` SDK patch.
+  See [`private-payments-nextjs/README.md`](./private-payments-nextjs/README.md) for the full walkthrough
+  and architecture.
 
 - **[`compliance-auditor/`](./compliance-auditor)** — a **headless** (no-UI)
   selective-disclosure example: derive the scoped viewing-key hierarchy
@@ -33,27 +33,19 @@ zero-knowledge proofs. Everything here is built on the public TypeScript SDK,
 
 ```bash
 cd private-payments-nextjs
-pnpm install          # runs scripts/patch-sdk.mjs via postinstall
+pnpm install
 pnpm dev              # http://localhost:3000
 ```
 
 Connect a Solana wallet **set to devnet**, fund it from the
 [faucet](https://faucet.umbraprivacy.com/), then walk tabs 1 → 5.
 
-## Required override (V18 / rc.4)
+## Versions
 
-`@umbra-privacy/sdk@5.0.0-rc.4` resolves `@umbra-privacy/umbra-codama@3.0.0-rc.3`,
-which has a PDA-derivation bug that makes deposits fail on-chain with
-`ConstraintSeeds (2006)`. Each example pins the fixed codama release in its
-`package.json`:
-
-```jsonc
-{ "pnpm": { "overrides": { "@umbra-privacy/umbra-codama": "3.0.0-rc.4" } } }
-```
-
-There is also a known `scan()` bug in `rc.3`–`rc.4` (a `BigInt()` call on a
-base64 field); each example ships a one-file `scripts/patch-sdk.mjs` wired as a
-`postinstall` hook to work around it until the SDK ships a fix.
+Built on `@umbra-privacy/sdk@5.0.0-rc.6`, which pins `@umbra-privacy/umbra-codama@3.0.0-rc.6`.
+No package-manager overrides or dist patches are needed — the earlier `rc.3`/`rc.4`
+codama PDA bug (`ConstraintSeeds 2006`) and columnar `scan()` bug are both fixed in rc.6.
+Just `pnpm install`.
 
 ## Links
 

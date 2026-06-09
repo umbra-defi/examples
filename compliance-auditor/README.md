@@ -3,7 +3,7 @@
 **Selective disclosure** on Umbra — how a user grants an auditor scoped, revocable
 read access to their otherwise-private activity. Pure scripts, **no UI**: a
 framework-agnostic core (`src/core/`) plus a thin Node CLI demo (`src/cli.ts`).
-Built on [`@umbra-privacy/sdk@5.0.0-rc.4`](https://www.npmjs.com/package/@umbra-privacy/sdk)
+Built on [`@umbra-privacy/sdk@5.0.0-rc.6`](https://www.npmjs.com/package/@umbra-privacy/sdk)
 (protocol V18).
 
 ## The two disclosure mechanisms
