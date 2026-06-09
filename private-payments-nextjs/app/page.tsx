@@ -5,7 +5,7 @@ export default function HomePage() {
   return (
     <>
       <Nav />
-      <h1>private-payments-app-test</h1>
+      <h1>Umbra Private Payments</h1>
       <p>Private payments on Solana, powered by Umbra. Five steps:</p>
       <div className="card">
         <h2>Get started</h2>

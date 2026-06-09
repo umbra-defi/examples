@@ -3,7 +3,7 @@ import { UmbraSessionProvider } from "./providers";
 import "./globals.css";
 
 export const metadata = {
-  title: "private-payments-app-test",
+  title: "Umbra Private Payments",
   description: "Private payments on Solana, powered by Umbra.",
 };
 

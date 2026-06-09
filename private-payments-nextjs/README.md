@@ -1,4 +1,4 @@
-# private-payments-app-test
+# Umbra Private Payments (Next.js example)
 
 A private-payments app on Solana, powered by **Umbra** (`@umbra-privacy/sdk@5.0.0-rc.4`,
 protocol V18). Scaffolded from the `umbra-sdk` skill template and restructured into the
