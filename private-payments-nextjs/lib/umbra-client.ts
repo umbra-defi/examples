@@ -69,16 +69,43 @@ export async function getOrCreateUmbraClient(
   const promise = (async () => {
     const signer = umbraSignerFromWallet(wallet, account);
 
-    // Shared in-memory master-seed cache: derived once on the bootstrap
-    // client, reused by the final client so the wallet signs only once.
+    // PERSISTENT master-seed cache (localStorage, keyed per wallet). The seed is
+    // derived once via signer.signMessage(UMBRA_MESSAGE_TO_SIGN); after that it's
+    // reused across reloads and sessions, so the wallet NEVER re-prompts for a
+    // signature. Also shared between the bootstrap + final client below, so even
+    // the first session signs only once.
+    //
+    // ⚠️ The seed derives every viewing key that can decrypt your "private"
+    // balances. localStorage is readable by any script on this origin — fine for
+    // a single-user example, NOT for production. See pitfalls.md §7. Clearing
+    // site data forces a fresh signature.
+    const seedKey = `umbra:masterseed:${umbraNetwork()}:${account.address}`;
     let cachedSeed: MasterSeed | undefined;
     const masterSeedStorage = {
-      load: async () =>
-        cachedSeed !== undefined
-          ? ({ exists: true, seed: cachedSeed } as const)
-          : ({ exists: false } as const),
+      load: async () => {
+        if (cachedSeed !== undefined) return { exists: true, seed: cachedSeed } as const;
+        try {
+          const stored =
+            typeof localStorage !== "undefined" ? localStorage.getItem(seedKey) : null;
+          if (stored) {
+            cachedSeed = Uint8Array.from(atob(stored), (c) => c.charCodeAt(0)) as unknown as MasterSeed;
+            dbg("client", `master seed loaded from localStorage (no signature needed) · ${account.address.slice(0, 8)}…`);
+            return { exists: true, seed: cachedSeed } as const;
+          }
+        } catch (e) {
+          dbg("client", "master-seed load failed", e);
+        }
+        return { exists: false } as const;
+      },
       store: async (seed: MasterSeed) => {
         cachedSeed = seed;
+        try {
+          if (typeof localStorage !== "undefined") {
+            localStorage.setItem(seedKey, btoa(String.fromCharCode(...(seed as unknown as Uint8Array))));
+          }
+        } catch (e) {
+          dbg("client", "master-seed store failed", e);
+        }
         return { success: true } as const;
       },
     };

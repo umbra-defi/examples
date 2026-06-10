@@ -1,32 +1,19 @@
 import type { NextConfig } from "next";
+import { ACTIVE } from "./lib/network-config";
 
 // Indexer + relayer requests are PROXIED via `/proxy/...` rewrites.
 // The browser never talks to the upstream Umbra services directly —
-// this avoids CORS, hides client IPs (indexer.md "IP-obfuscation note"),
-// and lets you swap upstream hosts without changing browser code.
+// this avoids CORS and hides client IPs (indexer.md "IP-obfuscation note").
 //
-// Server-only env vars `INDEXER_UPSTREAM` and `RELAYER_UPSTREAM` set
-// where each `/proxy/...` route forwards to. They are NEVER exposed to
-// the browser. The browser-facing `NEXT_PUBLIC_INDEXER_URL` and
-// `NEXT_PUBLIC_RELAYER_URL` always point at `/proxy/indexer` and
-// `/proxy/relayer` respectively.
+// The upstreams come from the SAME single NETWORK switch as lib/env.ts
+// (lib/network-config.ts), so flipping the network retargets the proxy too —
+// they can't drift apart.
 //
 // `transpilePackages` is required because the Umbra SDK ships ESM that
 // Next still wants to pre-process.
 
-function indexerUpstream(): string {
-  return (
-    process.env["INDEXER_UPSTREAM"]?.trim() ||
-    "https://utxo-indexer.api.umbraprivacy.com"
-  );
-}
-
-function relayerUpstream(): string {
-  return (
-    process.env["RELAYER_UPSTREAM"]?.trim() ||
-    "https://relayer.api.umbraprivacy.com"
-  );
-}
+const INDEXER_UPSTREAM = ACTIVE.indexerUpstream;
+const RELAYER_UPSTREAM = ACTIVE.relayerUpstream;
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
@@ -40,8 +27,8 @@ const nextConfig: NextConfig = {
   },
   async rewrites() {
     return [
-      { source: "/proxy/indexer/:path*", destination: `${indexerUpstream()}/:path*` },
-      { source: "/proxy/relayer/:path*", destination: `${relayerUpstream()}/:path*` },
+      { source: "/proxy/indexer/:path*", destination: `${INDEXER_UPSTREAM}/:path*` },
+      { source: "/proxy/relayer/:path*", destination: `${RELAYER_UPSTREAM}/:path*` },
     ];
   },
   async headers() {

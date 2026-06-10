@@ -33,7 +33,7 @@ const SKIP_LABELS: Record<string, string> = {
 
 export function ConvertToShared() {
   const { client, selectedAccount } = useUmbraSession();
-  const [mint, setMint] = useState(env.NEXT_PUBLIC_DEFAULT_MINT);
+  const [mint, setMint] = useState<string>(env.NEXT_PUBLIC_DEFAULT_MINT);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);

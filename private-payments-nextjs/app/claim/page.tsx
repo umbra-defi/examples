@@ -28,7 +28,7 @@
 //
 // Privacy note (privacy.md): receive UI is MANUAL — no auto-burn.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { address, getAddressDecoder } from "@solana/kit";
 import { getBurnableStealthPoolNoteScannerFunction } from "@umbra-privacy/sdk/burn";
 import { reconcileWithOnChainState } from "@umbra-privacy/sdk/store";
@@ -51,7 +51,8 @@ import {
   clearBurnt,
 } from "@/lib/claimed-index-store";
 
-const explorerTx = (sig: string) => `https://explorer.solana.com/tx/${sig}?cluster=devnet`;
+const explorerTx = (sig: string) =>
+  `https://explorer.solana.com/tx/${sig}${umbraNetwork() === "mainnet" ? "" : `?cluster=${umbraNetwork()}`}`;
 
 // ---- decode the human-readable fields off a DecryptedStealthPoolNoteData ----
 const addrDecoder = getAddressDecoder();
@@ -136,6 +137,8 @@ export default function ReceivePage() {
   const [scanned, setScanned] = useState<ScannedSummary | null>(null);
   const [results, setResults] = useState<readonly BurnResult[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Which single note is currently being claimed (per-note Claim button).
+  const [claimingId, setClaimingId] = useState<string | null>(null);
 
   async function refresh() {
     if (!client || !selectedAccount) return;
@@ -248,8 +251,35 @@ export default function ReceivePage() {
     }
   }
 
-  // Scanning is MANUAL — the user clicks "Scan" (no auto-scan on mount, no
-  // background polling). This keeps devnet RPC load minimal.
+  // Auto-scan on load (and when the wallet/client changes) so claimable notes
+  // appear without the user clicking. Scans are incremental + cheap; the manual
+  // "Scan" / "Full rescan" buttons remain for an explicit refresh.
+  useEffect(() => {
+    if (!client || !selectedAccount) return;
+    void refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [client, selectedAccount]);
+
+  // Claim a SINGLE note (per-note button). Same idempotent burn path as the
+  // group burn, just scoped to one note.
+  async function burnOne(note: BurnableNote) {
+    if (!client || !selectedAccount) return;
+    setClaimingId(note.id);
+    setError(null);
+    setResults(null);
+    try {
+      const out = await burnBatch(client, [note]);
+      setResults(out);
+      const burntIds = out.filter((r) => r.success).map((r) => r.noteId);
+      if (burntIds.length > 0) await addBurnt(selectedAccount.address, burntIds);
+      void refresh();
+    } catch (e: unknown) {
+      console.error("Umbra claim failed:", formatSdkErrorString(e));
+      setError(formatSdkErrorString(e));
+    } finally {
+      setClaimingId(null);
+    }
+  }
 
   async function burn(group: "receiver" | "self" | "all") {
     if (!client || !selectedAccount || !scanned) return;
@@ -342,10 +372,11 @@ export default function ReceivePage() {
       <Nav active="claim" />
       <h1>Receive <PrivacyTierBadge tier={1} /></h1>
       <p className="muted">
-        Scan runs on load and when you click <em>Refresh</em> (no background polling). Each scan
-        returns your full note set. Clicking <em>Burn received → ETA</em> claims incoming
-        receiver-claimable notes into your EncryptedTokenAccount (Tier&nbsp;1 — no link back to the
-        sender); withdraw to a public balance any time on the Withdraw tab.
+        Scanning runs automatically on load (no background polling). Every non-burnt note you can
+        claim is listed below with its own <em>Claim</em> button — receiver-claimable notes land in
+        your EncryptedTokenAccount (Tier&nbsp;1 — no link back to the sender), self-claimable notes
+        land in your public ATA. Use <em>Claim all</em> to burn them in one batch, or withdraw to a
+        public balance any time on the Withdraw tab.
       </p>
       <WalletButton />
       <RegistrationGate>
@@ -375,16 +406,13 @@ export default function ReceivePage() {
             <strong>public ATA</strong> (the &quot;Public (ATA)&quot; column, not the shielded one).
           </p>
           <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
-            <button onClick={() => void refresh()} disabled={refreshing || burning}>
-              {refreshing ? "Scanning…" : "Scan"}
+            <button onClick={() => void refresh()} disabled={refreshing || burning || claimingId !== null}>
+              {refreshing ? "Scanning…" : "Rescan"}
             </button>
-            <button onClick={() => void burn("receiver")} disabled={burning || recvCount === 0} className="secondary">
-              {burning ? "Burning…" : `Burn received → ETA (${recvCount})`}
+            <button onClick={() => void burn("all")} disabled={burning || claimingId !== null || recvCount + selfCount === 0} className="secondary">
+              {burning ? "Claiming…" : `Claim all (${recvCount + selfCount})`}
             </button>
-            <button onClick={() => void burn("self")} disabled={burning || selfCount === 0} className="secondary">
-              {burning ? "Burning…" : `Burn self → ATA (${selfCount})`}
-            </button>
-            <button onClick={() => void fullRescan()} disabled={refreshing || burning} className="secondary">
+            <button onClick={() => void fullRescan()} disabled={refreshing || burning || claimingId !== null} className="secondary">
               Full rescan (from start)
             </button>
           </div>
@@ -400,7 +428,7 @@ export default function ReceivePage() {
                       {note.type === "receiver" ? "receiver-claimable → your ETA" : "self-claimable → your ATA"}
                     </p>
                     <p className="mono muted" style={{ fontSize: "0.85em" }}>
-                      mint: {d.mint ? `${d.symbol} (${d.mint.slice(0, 4)}…${d.mint.slice(-4)})` : "—"}
+                      token: {d.symbol}
                     </p>
                     {d.sender && (
                       <p className="mono muted" style={{ fontSize: "0.85em" }}>
@@ -416,6 +444,17 @@ export default function ReceivePage() {
                       tree {d.treeIndex ?? "?"} · leaf #{d.leafIndex ?? "?"} · commitment #{d.commitmentIndex ?? "?"}
                       {d.source ? ` · src ${d.source}` : ""}
                     </p>
+                    <button
+                      onClick={() => void burnOne(note)}
+                      disabled={burning || claimingId !== null}
+                      style={{ marginTop: 8 }}
+                    >
+                      {claimingId === note.id
+                        ? "Claiming…"
+                        : note.type === "receiver"
+                          ? "Claim → ETA"
+                          : "Claim → ATA"}
+                    </button>
                   </div>
                 );
               })}

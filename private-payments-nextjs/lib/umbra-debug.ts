@@ -20,10 +20,10 @@
 //   - fee_vault 3003 / wrong-mint / unsupported token
 //       → send logs the resolved mint + amountRaw + every step signature.
 //
-// Logging is ON by default (this is a dev/test scaffold). Silence it with
-// NEXT_PUBLIC_UMBRA_DEBUG=0. Output goes to the browser console AND a small
-// in-memory ring buffer that <DebugPanel/> renders + copies to clipboard —
-// handy when testing on a phone / when the console isn't open.
+// Logging is OFF by default (no console output, no DebugPanel). Turn it ON for
+// troubleshooting with NEXT_PUBLIC_UMBRA_DEBUG=1 (or "true"). Output then goes to
+// the browser console AND a small in-memory ring buffer that <DebugPanel/>
+// renders + copies to clipboard — handy when testing on a phone / no console.
 
 import { verifyKeyConsistency } from "@umbra-privacy/sdk/validation";
 import { getUserAccountQuerierFunction } from "@umbra-privacy/sdk/query";
@@ -39,9 +39,9 @@ const APP_MINTS = SUPPORTED_MINTS.filter(
 ).map((m) => m.mint as never);
 
 export const DEBUG_ON =
-  typeof process !== "undefined" && process.env.NEXT_PUBLIC_UMBRA_DEBUG === "0"
-    ? false
-    : true;
+  typeof process !== "undefined" &&
+  (process.env.NEXT_PUBLIC_UMBRA_DEBUG === "1" ||
+    process.env.NEXT_PUBLIC_UMBRA_DEBUG === "true");
 
 export interface DebugEvent {
   readonly t: number; // epoch ms

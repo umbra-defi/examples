@@ -1,63 +1,42 @@
-import { z } from "zod";
+// Browser-facing config, derived from the single NETWORK switch in
+// lib/network-config.ts. To retarget devnet, change NETWORK there — network,
+// mint, indexer, and relayer all follow (next.config.ts reads the same module).
+//
+// The ONE value worth overriding locally is the RPC URL: the default is the
+// network's PUBLIC endpoint (rate-limits under load). Override it for local
+// testing via a gitignored .env.local → NEXT_PUBLIC_RPC_URL (a paid Helius/
+// Triton/QuickNode endpoint). It is NOT hardcoded because this is browser-
+// exposed code that gets committed — an inlined paid key would leak.
 
-// Browser-facing indexer/relayer URLs are RELATIVE proxy paths
-// (`/proxy/indexer`, `/proxy/relayer`) — same-origin to avoid CORS and
-// hide client IPs. The actual upstream hosts live in server-only
-// `INDEXER_UPSTREAM` / `RELAYER_UPSTREAM` env vars (see next.config.ts).
-const schema = z.object({
-  NEXT_PUBLIC_NETWORK: z.enum(["mainnet-beta", "devnet", "localnet"]),
-  NEXT_PUBLIC_RPC_URL: z.string().url(),
-  NEXT_PUBLIC_RPC_WS_URL: z.string().url().optional().or(z.literal("").transform(() => undefined)),
-  NEXT_PUBLIC_DEFAULT_MINT: z.string().min(32).max(44),
-  NEXT_PUBLIC_INDEXER_URL: z.string().min(1),
-  NEXT_PUBLIC_RELAYER_URL: z.string().min(1),
-  // How the SDK waits for transaction confirmation + Arcium MPC callbacks:
-  //   - "polling"   — HTTP getSignatureStatuses / getAccountInfo loops. Works
-  //     on ANY RPC, including the public `api.devnet.solana.com` whose
-  //     WebSocket endpoint throttles/refuses subscriptions ("Failed to
-  //     establish WebSocket subscription"). This is the safe default.
-  //   - "websocket" — real-time account/signature subscriptions. Lower latency
-  //     and fewer RPC calls, but requires a WS-capable RPC (Helius, Triton,
-  //     QuickNode, a local validator, …). Set NEXT_PUBLIC_RPC_WS_URL too.
-  NEXT_PUBLIC_RPC_TRANSPORT: z
-    .enum(["polling", "websocket"])
-    .optional()
-    .default("polling"),
-});
+import { ACTIVE, type Network } from "./network-config";
 
-const raw = {
-  NEXT_PUBLIC_NETWORK: process.env.NEXT_PUBLIC_NETWORK,
-  NEXT_PUBLIC_RPC_URL: process.env.NEXT_PUBLIC_RPC_URL,
-  NEXT_PUBLIC_RPC_WS_URL: process.env.NEXT_PUBLIC_RPC_WS_URL,
-  NEXT_PUBLIC_DEFAULT_MINT: process.env.NEXT_PUBLIC_DEFAULT_MINT,
-  NEXT_PUBLIC_INDEXER_URL: process.env.NEXT_PUBLIC_INDEXER_URL,
-  NEXT_PUBLIC_RELAYER_URL: process.env.NEXT_PUBLIC_RELAYER_URL,
-  NEXT_PUBLIC_RPC_TRANSPORT: process.env.NEXT_PUBLIC_RPC_TRANSPORT,
-};
+export type { Network };
 
-const parsed = schema.safeParse(raw);
-if (!parsed.success) {
-  const issues = parsed.error.issues.map((i) => `  ${i.path.join(".")}: ${i.message}`).join("\n");
-  throw new Error(
-    `Invalid environment configuration. Copy .env.example to .env.local and set:\n${issues}`,
-  );
-}
+const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL?.trim() || ACTIVE.defaultRpcUrl;
+const RPC_WS_URL =
+  process.env.NEXT_PUBLIC_RPC_WS_URL?.trim() || RPC_URL.replace(/^http/, "ws");
 
-export const env = parsed.data;
+export const env = {
+  NEXT_PUBLIC_NETWORK: ACTIVE.cluster,
+  NEXT_PUBLIC_RPC_URL: RPC_URL,
+  NEXT_PUBLIC_RPC_WS_URL: RPC_WS_URL,
+  NEXT_PUBLIC_DEFAULT_MINT: ACTIVE.defaultMint,
+  // Browser hits same-origin proxy paths; next.config.ts forwards to the
+  // network's indexer/relayer (avoids CORS, hides client IP).
+  NEXT_PUBLIC_INDEXER_URL: "/proxy/indexer",
+  NEXT_PUBLIC_RELAYER_URL: "/proxy/relayer",
+  // "polling" works on any RPC over HTTP (no WebSocket needed).
+  NEXT_PUBLIC_RPC_TRANSPORT: "polling",
+} as const;
 
 export function deriveWsUrl(): string {
-  if (env.NEXT_PUBLIC_RPC_WS_URL) return env.NEXT_PUBLIC_RPC_WS_URL;
-  return env.NEXT_PUBLIC_RPC_URL.replace(/^http/, "ws");
+  return env.NEXT_PUBLIC_RPC_WS_URL;
 }
 
 export function rpcTransport(): "polling" | "websocket" {
   return env.NEXT_PUBLIC_RPC_TRANSPORT;
 }
 
-export type Network = "mainnet" | "devnet" | "localnet";
-
 export function umbraNetwork(): Network {
-  if (env.NEXT_PUBLIC_NETWORK === "mainnet-beta") return "mainnet";
-  if (env.NEXT_PUBLIC_NETWORK === "devnet") return "devnet";
-  return "localnet";
+  return ACTIVE.sdkNetwork;
 }

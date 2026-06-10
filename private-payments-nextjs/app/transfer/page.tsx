@@ -32,6 +32,7 @@ import { DebugPanel } from "@/components/DebugPanel";
 import { useUmbraSession } from "@/app/providers";
 import { env } from "@/lib/env";
 import { isSupportedMint, findMint } from "@/lib/supported-mints";
+import { MintSelect } from "@/components/MintSelect";
 import { parseAmount } from "@/lib/amount";
 import { createFromEncryptedProver } from "@/lib/zk-prover";
 import { formatSdkErrorString } from "@/lib/format-error";
@@ -60,7 +61,7 @@ export default function TransferPage() {
   const [mode, setMode] = useState<Mode>("receiver");
   const [recipient, setRecipient] = useState("");
   const [amount, setAmount] = useState("");
-  const [mint, setMint] = useState(env.NEXT_PUBLIC_DEFAULT_MINT);
+  const [mint, setMint] = useState<string>(env.NEXT_PUBLIC_DEFAULT_MINT);
   const [submitting, setSubmitting] = useState(false);
   const [step, setStep] = useState<string | null>(null);
   const [signatures, setSignatures] = useState<readonly { label: string; sig: string }[] | null>(null);
@@ -236,9 +237,8 @@ export default function TransferPage() {
             inputMode="decimal"
             placeholder="0.00"
           />
-          <label>Mint</label>
-          <input value={mint} onChange={(e) => setMint(e.target.value)} spellCheck={false} />
-          <p className="muted">{findMint(mint, network)?.symbol ?? "(unsupported)"}</p>
+          <label>Token</label>
+          <MintSelect value={mint} onChange={setMint} disabled={submitting} />
 
           <button onClick={() => void submit()} disabled={submitting || !canSubmit}>
             {submitting
