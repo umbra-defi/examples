@@ -4,12 +4,11 @@ Reference applications for **[Umbra](https://umbraprivacy.com)** — a privacy
 protocol for Solana that shields SPL / Token-2022 balances using Arcium MPC and
 zero-knowledge proofs. Everything here is built on the public TypeScript SDK,
 [`@umbra-privacy/sdk`](https://www.npmjs.com/package/@umbra-privacy/sdk)
-(`5.0.0-rc.6`, protocol V18).
+(`5.0.0-rc.9`, protocol V18).
 
 ## What's here
 
-- **[`private-payments-nextjs/`](./private-payments-nextjs)** — a full **private-payments Next.js app** (devnet,
-  dUSDC). Wallet-only signer, the SDK's standard browser store adapters
+- **[`private-payments-nextjs/`](./private-payments-nextjs)** — a full **private-payments Next.js app** (mainnet-beta by default; one env switch to devnet). Wallet-only signer, the SDK's standard browser store adapters
   (`createShardedUtxoDataStore` + `createShardedNullifierStore`), and the five
   private-payment steps as one tab each:
 

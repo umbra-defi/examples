@@ -1,6 +1,6 @@
 # Umbra Private Payments (Next.js example)
 
-A private-payments app on Solana, powered by **Umbra** (`@umbra-privacy/sdk@5.0.0-rc.6`,
+A private-payments app on Solana, powered by **Umbra** (`@umbra-privacy/sdk@5.0.0-rc.9`,
 protocol V18). Scaffolded from the `umbra-sdk` skill template and restructured into the
 **5 private-payment steps**, one tab each. Defaults to **mainnet-beta** + **USDC**; a
 `.env.local` is **optional** (mainly to point the RPC at a paid endpoint).
@@ -87,6 +87,7 @@ lib/              env, signer, umbra-client, zk-prover, claim-*, supported-mints
 
 ## Notes
 
+- **codama override:** `@umbra-privacy/sdk@5.0.0-rc.9` declares a dependency on `@umbra-privacy/umbra-codama@3.0.0-rc.7`, which is **not published to npm yet**. `package.json` therefore pins `umbra-codama@3.0.0-rc.6` (latest published) via `pnpm.overrides` — installs + builds clean. Drop the override once rc.7 ships.
 - The "multiple lockfiles" build warning is benign (a parent `pnpm-lock.yaml` exists higher up); set `outputFileTracingRoot` in `next.config.ts` to silence it.
 - Cross-account flows (Transfer → recipient → their Claim) need two wallets, both registered on mainnet.
 - Docs: https://sdk.umbraprivacy.com/ · supported tokens: https://sdk.umbraprivacy.com/supported-tokens
